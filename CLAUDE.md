@@ -429,6 +429,7 @@ fix/phase2-token-refresh
 
 - **Never commit directly to `develop` or `main`**
 - Merge only via Pull Request, after review and all checks passing
+- **Delete the branch immediately after merge** — no stale branches in the repository
 
 ### Pull Request Requirements
 
