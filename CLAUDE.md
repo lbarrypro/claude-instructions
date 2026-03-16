@@ -935,7 +935,9 @@ Les skills sont des commandes slash personnalisées définies dans `.claude/comm
 
 Chaque projet a ses propres besoins. Au démarrage d'un nouveau projet (ou à la demande), Claude **analyse les spécifications et crée les skills et agents adaptés** à ce contexte précis.
 
-**Exemples de rôles spécialisés selon les projets :**
+**Catalogue de rôles spécialisés :**
+
+#### Rôles universels (tout projet)
 
 | Rôle / Agent | Ce qu'il fait |
 |--------------|---------------|
@@ -949,6 +951,41 @@ Chaque projet a ses propres besoins. Au démarrage d'un nouveau projet (ou à la
 | **Testeur qualité (QA)** | Rédige les cahiers de tests, exécute les scénarios, identifie les régressions |
 | **Expert sécurité** | Audite le code, les dépendances, les configurations, les accès |
 | **Expert performance** | Profile, identifie les goulots, propose les optimisations mesurées |
+| **DBA (Expert base de données)** | Schema design, query optimization, stratégie de migration — distinct du backend qui code |
+| **Technical Writer** | Rédige la doc API, guides d'intégration, READMEs — pour les développeurs consommateurs |
+| **Expert conformité / RGPD** | Consentement, rétention, droit à l'oubli, mentions légales — dès qu'il y a des données utilisateurs |
+
+#### Rôles fréquents selon la stack
+
+| Rôle / Agent | Ce qu'il fait |
+|--------------|---------------|
+| **Expert intégrations tierces** | APIs externes, webhooks, OAuth, Stripe — contrats, idempotence, retry strategies |
+| **Expert mobile (iOS / Android / RN)** | Navigation, permissions, offline, push notifications |
+| **Expert accessibilité (a11y)** | WCAG, lecteurs d'écran, navigation clavier, contrastes — distinct de l'UX |
+| **Expert i18n / l10n** | Traductions, formats dates/monnaies, RTL — projets multi-langues |
+
+#### Rôles spécialisés par domaine
+
+| Rôle / Agent | Ce qu'il fait |
+|--------------|---------------|
+| **Data Engineer / Analyste** | Pipelines de données, reporting, dashboards, ETL, modélisation analytique |
+| **Expert IA / LLM** | Prompting, RAG, fine-tuning, évaluation de sorties — projets intégrant des modèles |
+| **FinOps / Expert coût cloud** | Optimise les coûts AWS/GCP/Azure — intervient dès qu'il y a de l'infra cloud |
+| **Expert SEO technique** | SSR, balises meta, Core Web Vitals, sitemap, structured data — projets marketing/contenu |
+| **Expert monitoring / observabilité** | Instrumente Datadog, Grafana, alerting — distinct du DevOps qui pipeline |
+| **Expert infrastructure / Cloud Architect** | VPC, IAM, scaling, disaster recovery — infra complexe, distinct du DevOps |
+
+#### Stack de départ recommandée (projet SaaS type)
+
+Au démarrage d'un projet SaaS, proposer systématiquement ces rôles :
+
+```
+Architecte logiciel, Senior Backend, Senior Frontend,
+DBA, DevOps, QA, Expert sécurité, Expert conformité/RGPD,
+Expert intégrations tierces, Technical Writer
+```
+
+Les autres rôles s'ajoutent au besoin selon les specs du projet.
 
 **Règle de création :**
 
