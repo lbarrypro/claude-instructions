@@ -53,6 +53,47 @@ Found X unrecognized doc(s) in docs/:
 
 ---
 
+## 0.1 Profil Utilisateur
+
+> Calibre le comportement de Claude pour cette session.
+
+- **Rôle** : Développeur senior, vision produit forte, décisions fonctionnelles autonomes
+- **Expertise technique** : Solide sur le code métier ; pas d'expertise DevOps, infra, sécurité, tests, architecture système
+- **Attentes** :
+  - Solutions clé en main sur les domaines non maîtrisés
+  - Explications courtes, sans jargon infra
+  - Toujours proposer avant d'agir — **c'est l'utilisateur qui valide, toujours**
+  - Format préféré pour les décisions techniques : ADR pré-rempli à soumettre à validation
+
+---
+
+## 0.2 Domaines Techniques — Proposition obligatoire
+
+Sur les domaines listés ci-dessous, Claude **propose une solution complète et argumentée**, puis **attend validation explicite** avant d'implémenter :
+
+| Domaine | Ce que Claude fait |
+|---------|-------------------|
+| **DevOps / CI-CD** | Propose pipeline, config Docker, stratégie de déploiement |
+| **Sécurité** | Propose audit OWASP, config headers, gestion secrets |
+| **Architecture** | Propose patterns, découpage services, structure de dossiers |
+| **Tests** | Propose stratégie, coverage cible, fixtures |
+| **Performance** | Propose indexing, caching, pagination |
+| **Base de données** | Propose schema design, migrations, indexing |
+| **Dépendances** | Propose ajout/suppression de libs avec justification |
+
+**Format de proposition systématique :**
+```
+Domaine : <DevOps / Sécurité / Architecture / ...>
+Proposition : <ce que je propose de faire>
+Pourquoi : <justification courte>
+Impact : <ce que ça change, risques éventuels>
+→ Valider pour continuer ?
+```
+
+> Règle absolue : aucune décision technique structurante n'est prise sans validation explicite de l'utilisateur.
+
+---
+
 ## 1. Plan Node Default
 
 - Enter plan mode for **ANY non-trivial task** (3+ steps or architectural decisions)
@@ -355,6 +396,19 @@ Apply design patterns when they solve a real, present problem — not to demonst
 
 ## Git Workflow
 
+### Mode PoC
+
+Si le projet est en phase **PoC / Prototype** :
+
+- Commit direct sur `main` autorisé
+- Pas de branche `develop`, pas de PR obligatoire
+- Documentation minimale : `README.md` + `tasks/todo.md` suffisent
+- **Dès qu'un PoC passe en "produit"** (validation, premier utilisateur réel, ou décision de continuer) → appliquer le workflow complet ci-dessous sans exception
+
+> Indiquer explicitement le mode du projet dans `README.md` : `**Mode : PoC**` ou `**Mode : Produit**`.
+
+---
+
 ### Branch Strategy
 
 - Main branches: `main` (production), `develop` (integration)
@@ -375,6 +429,7 @@ fix/phase2-token-refresh
 
 - **Never commit directly to `develop` or `main`**
 - Merge only via Pull Request, after review and all checks passing
+- **Delete the branch immediately after merge** — no stale branches in the repository
 
 ### Pull Request Requirements
 
@@ -849,6 +904,124 @@ A task is **done** only when ALL of the following are true:
 - [ ] Relevant `docs/` files are updated
 - [ ] `tasks/todo.md` reflects completion
 - [ ] `README.md` updated if setup, structure, or features changed
+
+---
+
+## Hooks — Automatismes de session
+
+Les hooks Claude Code sont configurés dans `.claude/settings.json`. Ils s'exécutent automatiquement sur des événements de session.
+
+### Hooks actifs
+
+| Événement | Déclencheur | Action |
+|-----------|-------------|--------|
+| `PostToolUse` | Après `Edit` ou `Write` | Rappel de vérifier lint/tests si un linter est configuré |
+| `PreToolUse` | Avant `Bash` avec commandes destructives | Avertissement avant `rm -rf`, `drop`, `reset --hard`, `force push` |
+| `Stop` | Fin de session | Rappel de mettre à jour `tasks/todo.md` et `docs/lessons.md` |
+
+### Règles d'intégration dans le process
+
+- Si un hook bloque une action : **ne pas contourner** (`--no-verify`, etc.) — investiguer la cause
+- Si un hook échoue sur le lint : corriger avant de continuer, ne pas ignorer
+- Le hook `Stop` est un filet de sécurité — ne pas attendre qu'il le rappelle pour mettre à jour les docs
+
+> La config complète des hooks est dans `.claude/settings.json` à la racine du projet.
+
+---
+
+## Skills — Commandes réutilisables
+
+Les skills sont des commandes slash personnalisées définies dans `.claude/commands/`. Ils peuvent être invoqués par Claude (subagents inclus) ou par l'utilisateur.
+
+### Skills disponibles
+
+| Commande | Usage |
+|----------|-------|
+| `/new-feature <description>` | Initialise une nouvelle feature : plan, docs de phase, test plan, user doc |
+| `/prep-pr` | Génère le corps de PR complet avec checklist remplie |
+| `/review-security` | Audit OWASP sur les fichiers modifiés dans la session courante |
+| `/debt-review` | Liste tous les `TODO`, `TEMP`, `FIXME` avec contexte et ticket suggéré |
+| `/explain-tech <terme>` | Explique un concept technique en langage produit, sans jargon infra |
+
+> Les skills sont définis dans `.claude/commands/<nom>.md`. Tout subagent peut les invoquer.
+
+### Skills et agents spécialisés par projet
+
+Chaque projet a ses propres besoins. Au démarrage d'un nouveau projet (ou à la demande), Claude **analyse les spécifications et crée les skills et agents adaptés** à ce contexte précis.
+
+**Catalogue de rôles spécialisés :**
+
+#### Rôles universels (tout projet)
+
+| Rôle / Agent | Ce qu'il fait |
+|--------------|---------------|
+| **Architecte logiciel** | Conçoit la structure globale, découpage en services, choix des patterns |
+| **CTO** | Évalue les risques techniques, la dette, les décisions structurantes, la roadmap tech |
+| **Product Owner** | Rédige les specs fonctionnelles, les user stories, les critères d'acceptance |
+| **DevOps** | Configure CI/CD, Docker, déploiements, monitoring, rollback |
+| **Senior Backend** | Implémente la logique métier, les APIs, les accès données |
+| **Senior Frontend** | Implémente les interfaces, la gestion d'état, les intégrations API |
+| **Expert UI/UX** | Conçoit les flows utilisateurs, la hiérarchie visuelle, l'accessibilité |
+| **Testeur qualité (QA)** | Rédige les cahiers de tests, exécute les scénarios, identifie les régressions |
+| **Expert sécurité** | Audite le code, les dépendances, les configurations, les accès |
+| **Expert performance** | Profile, identifie les goulots, propose les optimisations mesurées |
+| **DBA (Expert base de données)** | Schema design, query optimization, stratégie de migration — distinct du backend qui code |
+| **Technical Writer** | Rédige la doc API, guides d'intégration, READMEs — pour les développeurs consommateurs |
+| **Expert conformité / RGPD** | Consentement, rétention, droit à l'oubli, mentions légales — dès qu'il y a des données utilisateurs |
+
+#### Rôles fréquents selon la stack
+
+| Rôle / Agent | Ce qu'il fait |
+|--------------|---------------|
+| **Expert intégrations tierces** | APIs externes, webhooks, OAuth, Stripe — contrats, idempotence, retry strategies |
+| **Expert mobile (iOS / Android / RN)** | Navigation, permissions, offline, push notifications |
+| **Expert accessibilité (a11y)** | WCAG, lecteurs d'écran, navigation clavier, contrastes — distinct de l'UX |
+| **Expert i18n / l10n** | Traductions, formats dates/monnaies, RTL — projets multi-langues |
+
+#### Rôles spécialisés par domaine
+
+| Rôle / Agent | Ce qu'il fait |
+|--------------|---------------|
+| **Data Engineer / Analyste** | Pipelines de données, reporting, dashboards, ETL, modélisation analytique |
+| **Expert IA / LLM** | Prompting, RAG, fine-tuning, évaluation de sorties — projets intégrant des modèles |
+| **FinOps / Expert coût cloud** | Optimise les coûts AWS/GCP/Azure — intervient dès qu'il y a de l'infra cloud |
+| **Expert SEO technique** | SSR, balises meta, Core Web Vitals, sitemap, structured data — projets marketing/contenu |
+| **Expert monitoring / observabilité** | Instrumente Datadog, Grafana, alerting — distinct du DevOps qui pipeline |
+| **Expert infrastructure / Cloud Architect** | VPC, IAM, scaling, disaster recovery — infra complexe, distinct du DevOps |
+
+#### Stack de départ recommandée (projet SaaS type)
+
+Au démarrage d'un projet SaaS, proposer systématiquement ces rôles :
+
+```
+Architecte logiciel, Senior Backend, Senior Frontend,
+DBA, DevOps, QA, Expert sécurité, Expert conformité/RGPD,
+Expert intégrations tierces, Technical Writer
+```
+
+Les autres rôles s'ajoutent au besoin selon les specs du projet.
+
+**Règle de création :**
+
+Au démarrage d'un projet ou d'une phase significative, Claude doit :
+
+1. **Analyser les specs** du projet (stack, domaines fonctionnels, contraintes)
+2. **Identifier les rôles nécessaires** parmi les exemples ci-dessus ou en créer de nouveaux si le projet l'exige
+3. **Proposer la liste des skills et agents** à créer, avec leur périmètre exact
+4. **Attendre validation** avant de créer quoi que ce soit
+5. **Créer les fichiers** dans `.claude/commands/<projet>/<nom>.md` pour les skills, et documenter les agents dans `docs/ARCHITECTURE.md`
+
+**Naming convention :**
+```
+.claude/commands/<projet>/<role>-<action>.md
+
+Exemples :
+.claude/commands/myapp/cto-risk-review.md
+.claude/commands/myapp/qa-test-plan.md
+.claude/commands/myapp/ux-flow-review.md
+```
+
+> Un agent spécialisé est un subagent auquel on donne un contexte de rôle précis, un périmètre strict, et les skills correspondants. Il ne doit jamais sortir de son périmètre sans escalader à l'utilisateur.
 
 ---
 
