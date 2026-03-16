@@ -396,6 +396,19 @@ Apply design patterns when they solve a real, present problem — not to demonst
 
 ## Git Workflow
 
+### Mode PoC
+
+Si le projet est en phase **PoC / Prototype** :
+
+- Commit direct sur `main` autorisé
+- Pas de branche `develop`, pas de PR obligatoire
+- Documentation minimale : `README.md` + `tasks/todo.md` suffisent
+- **Dès qu'un PoC passe en "produit"** (validation, premier utilisateur réel, ou décision de continuer) → appliquer le workflow complet ci-dessous sans exception
+
+> Indiquer explicitement le mode du projet dans `README.md` : `**Mode : PoC**` ou `**Mode : Produit**`.
+
+---
+
 ### Branch Strategy
 
 - Main branches: `main` (production), `develop` (integration)
