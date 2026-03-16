@@ -931,6 +931,47 @@ Les skills sont des commandes slash personnalisées définies dans `.claude/comm
 
 > Les skills sont définis dans `.claude/commands/<nom>.md`. Tout subagent peut les invoquer.
 
+### Skills et agents spécialisés par projet
+
+Chaque projet a ses propres besoins. Au démarrage d'un nouveau projet (ou à la demande), Claude **analyse les spécifications et crée les skills et agents adaptés** à ce contexte précis.
+
+**Exemples de rôles spécialisés selon les projets :**
+
+| Rôle / Agent | Ce qu'il fait |
+|--------------|---------------|
+| **Architecte logiciel** | Conçoit la structure globale, découpage en services, choix des patterns |
+| **CTO** | Évalue les risques techniques, la dette, les décisions structurantes, la roadmap tech |
+| **Product Owner** | Rédige les specs fonctionnelles, les user stories, les critères d'acceptance |
+| **DevOps** | Configure CI/CD, Docker, déploiements, monitoring, rollback |
+| **Senior Backend** | Implémente la logique métier, les APIs, les accès données |
+| **Senior Frontend** | Implémente les interfaces, la gestion d'état, les intégrations API |
+| **Expert UI/UX** | Conçoit les flows utilisateurs, la hiérarchie visuelle, l'accessibilité |
+| **Testeur qualité (QA)** | Rédige les cahiers de tests, exécute les scénarios, identifie les régressions |
+| **Expert sécurité** | Audite le code, les dépendances, les configurations, les accès |
+| **Expert performance** | Profile, identifie les goulots, propose les optimisations mesurées |
+
+**Règle de création :**
+
+Au démarrage d'un projet ou d'une phase significative, Claude doit :
+
+1. **Analyser les specs** du projet (stack, domaines fonctionnels, contraintes)
+2. **Identifier les rôles nécessaires** parmi les exemples ci-dessus ou en créer de nouveaux si le projet l'exige
+3. **Proposer la liste des skills et agents** à créer, avec leur périmètre exact
+4. **Attendre validation** avant de créer quoi que ce soit
+5. **Créer les fichiers** dans `.claude/commands/<projet>/<nom>.md` pour les skills, et documenter les agents dans `docs/ARCHITECTURE.md`
+
+**Naming convention :**
+```
+.claude/commands/<projet>/<role>-<action>.md
+
+Exemples :
+.claude/commands/myapp/cto-risk-review.md
+.claude/commands/myapp/qa-test-plan.md
+.claude/commands/myapp/ux-flow-review.md
+```
+
+> Un agent spécialisé est un subagent auquel on donne un contexte de rôle précis, un périmètre strict, et les skills correspondants. Il ne doit jamais sortir de son périmètre sans escalader à l'utilisateur.
+
 ---
 
 ## Core Principles
