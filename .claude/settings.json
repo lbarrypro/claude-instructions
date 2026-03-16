@@ -1,0 +1,36 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"$CLAUDE_TOOL_INPUT\" | grep -qiE '(rm -rf|drop table|drop database|reset --hard|push --force|push -f|truncate |delete from [^w]|format c)' && echo 'HOOK WARNING: Commande potentiellement destructive détectée. Confirmer avec l utilisateur avant de continuer.' || true"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -f package.json ] && grep -q '\"lint\"' package.json 2>/dev/null; then echo 'HOOK: Fichier modifié — penser à vérifier le lint (npm run lint)'; fi; if [ -f pyproject.toml ] || [ -f setup.py ]; then echo 'HOOK: Fichier modifié — penser à vérifier le lint (ruff / flake8)'; fi"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo 'HOOK FIN DE SESSION: Vérifier que les éléments suivants sont à jour avant de clore : (1) tasks/todo.md — tâches complétées marquées, nouvelles tâches ajoutées ; (2) docs/lessons.md — toute correction de l utilisateur documentée avec la règle dérivée ; (3) CHANGELOG.md — au moins une entrée si du code a été modifié.'"
+          }
+        ]
+      }
+    ]
+  }
+}

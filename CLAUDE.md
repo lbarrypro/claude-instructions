@@ -53,6 +53,47 @@ Found X unrecognized doc(s) in docs/:
 
 ---
 
+## 0.1 Profil Utilisateur
+
+> Calibre le comportement de Claude pour cette session.
+
+- **Rôle** : Développeur senior, vision produit forte, décisions fonctionnelles autonomes
+- **Expertise technique** : Solide sur le code métier ; pas d'expertise DevOps, infra, sécurité, tests, architecture système
+- **Attentes** :
+  - Solutions clé en main sur les domaines non maîtrisés
+  - Explications courtes, sans jargon infra
+  - Toujours proposer avant d'agir — **c'est l'utilisateur qui valide, toujours**
+  - Format préféré pour les décisions techniques : ADR pré-rempli à soumettre à validation
+
+---
+
+## 0.2 Domaines Techniques — Proposition obligatoire
+
+Sur les domaines listés ci-dessous, Claude **propose une solution complète et argumentée**, puis **attend validation explicite** avant d'implémenter :
+
+| Domaine | Ce que Claude fait |
+|---------|-------------------|
+| **DevOps / CI-CD** | Propose pipeline, config Docker, stratégie de déploiement |
+| **Sécurité** | Propose audit OWASP, config headers, gestion secrets |
+| **Architecture** | Propose patterns, découpage services, structure de dossiers |
+| **Tests** | Propose stratégie, coverage cible, fixtures |
+| **Performance** | Propose indexing, caching, pagination |
+| **Base de données** | Propose schema design, migrations, indexing |
+| **Dépendances** | Propose ajout/suppression de libs avec justification |
+
+**Format de proposition systématique :**
+```
+Domaine : <DevOps / Sécurité / Architecture / ...>
+Proposition : <ce que je propose de faire>
+Pourquoi : <justification courte>
+Impact : <ce que ça change, risques éventuels>
+→ Valider pour continuer ?
+```
+
+> Règle absolue : aucune décision technique structurante n'est prise sans validation explicite de l'utilisateur.
+
+---
+
 ## 1. Plan Node Default
 
 - Enter plan mode for **ANY non-trivial task** (3+ steps or architectural decisions)
@@ -849,6 +890,46 @@ A task is **done** only when ALL of the following are true:
 - [ ] Relevant `docs/` files are updated
 - [ ] `tasks/todo.md` reflects completion
 - [ ] `README.md` updated if setup, structure, or features changed
+
+---
+
+## Hooks — Automatismes de session
+
+Les hooks Claude Code sont configurés dans `.claude/settings.json`. Ils s'exécutent automatiquement sur des événements de session.
+
+### Hooks actifs
+
+| Événement | Déclencheur | Action |
+|-----------|-------------|--------|
+| `PostToolUse` | Après `Edit` ou `Write` | Rappel de vérifier lint/tests si un linter est configuré |
+| `PreToolUse` | Avant `Bash` avec commandes destructives | Avertissement avant `rm -rf`, `drop`, `reset --hard`, `force push` |
+| `Stop` | Fin de session | Rappel de mettre à jour `tasks/todo.md` et `docs/lessons.md` |
+
+### Règles d'intégration dans le process
+
+- Si un hook bloque une action : **ne pas contourner** (`--no-verify`, etc.) — investiguer la cause
+- Si un hook échoue sur le lint : corriger avant de continuer, ne pas ignorer
+- Le hook `Stop` est un filet de sécurité — ne pas attendre qu'il le rappelle pour mettre à jour les docs
+
+> La config complète des hooks est dans `.claude/settings.json` à la racine du projet.
+
+---
+
+## Skills — Commandes réutilisables
+
+Les skills sont des commandes slash personnalisées définies dans `.claude/commands/`. Ils peuvent être invoqués par Claude (subagents inclus) ou par l'utilisateur.
+
+### Skills disponibles
+
+| Commande | Usage |
+|----------|-------|
+| `/new-feature <description>` | Initialise une nouvelle feature : plan, docs de phase, test plan, user doc |
+| `/prep-pr` | Génère le corps de PR complet avec checklist remplie |
+| `/review-security` | Audit OWASP sur les fichiers modifiés dans la session courante |
+| `/debt-review` | Liste tous les `TODO`, `TEMP`, `FIXME` avec contexte et ticket suggéré |
+| `/explain-tech <terme>` | Explique un concept technique en langage produit, sans jargon infra |
+
+> Les skills sont définis dans `.claude/commands/<nom>.md`. Tout subagent peut les invoquer.
 
 ---
 
