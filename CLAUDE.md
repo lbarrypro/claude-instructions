@@ -939,6 +939,7 @@ Les skills sont des commandes slash personnalisées définies dans `.claude/comm
 | Commande | Usage |
 |----------|-------|
 | `/new-feature <description>` | Initialise une nouvelle feature : plan, docs de phase, test plan, user doc |
+| `/new-view <nom de la vue>` | Définit une vue : user story, navigation, états, critères d'acceptation, données |
 | `/prep-pr` | Génère le corps de PR complet avec checklist remplie |
 | `/review-security` | Audit OWASP sur les fichiers modifiés dans la session courante |
 | `/debt-review` | Liste tous les `TODO`, `TEMP`, `FIXME` avec contexte et ticket suggéré |
