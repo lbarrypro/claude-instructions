@@ -22,6 +22,7 @@ Before doing anything, load the project context in this exact order (**macro →
 | 10 | `docs/lessons.md` | Past mistakes — read last to contextualize everything above |
 
 - Check that `README.md` exists at the project root — if missing or empty, generate and propose it before starting work
+- Check that `.claudeignore` exists at the project root — if missing, create it and exclude dirs that should not be read by Claude (e.g. `node_modules/`, `dist/`, `.git/`, build artifacts, large asset folders)
 - If any of these files don't exist yet, create them before starting work
 
 ### Existing Docs Migration Protocol
@@ -938,6 +939,7 @@ Les skills sont des commandes slash personnalisées définies dans `.claude/comm
 | Commande | Usage |
 |----------|-------|
 | `/new-feature <description>` | Initialise une nouvelle feature : plan, docs de phase, test plan, user doc |
+| `/new-view <nom de la vue>` | Définit une vue : user story, navigation, états, critères d'acceptation, données |
 | `/prep-pr` | Génère le corps de PR complet avec checklist remplie |
 | `/review-security` | Audit OWASP sur les fichiers modifiés dans la session courante |
 | `/debt-review` | Liste tous les `TODO`, `TEMP`, `FIXME` avec contexte et ticket suggéré |
