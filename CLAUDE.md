@@ -53,7 +53,7 @@ Found X unrecognized doc(s) in docs/:
 
 ---
 
-## 1. Plan Node Default
+## 1. Plan Mode Default
 
 - Enter plan mode for **ANY non-trivial task** (3+ steps or architectural decisions)
 - Write the plan to `tasks/todo.md` with checkable items before touching any code
@@ -69,6 +69,30 @@ Found X unrecognized doc(s) in docs/:
 - Offload research, exploration, and parallel analysis to subagents
 - For complex problems, throw more compute at it via subagents
 - One task per subagent for focused execution
+
+### Built-in Subagent Types
+
+| Type | Tools | Use when |
+|------|-------|----------|
+| `Explore` | Read-only | Fast codebase search, multi-location research |
+| `Plan` | Read-only | Architecture planning, design decisions |
+| `general-purpose` | All tools | Complex multi-step tasks |
+
+### Custom Subagents (`.claude/agents/`)
+
+Create project-specific agents with restricted tools and system prompts:
+- **code-reviewer**: Read-only (`Glob, Grep, Read`), triggered automatically after changes
+- **db-reader**: Bash only, with a `PreToolUse` hook blocking any non-SELECT SQL
+- **parallel-research**: Multiple Explore agents in parallel for independent investigations
+
+### `/batch` — Large-scale Parallel Execution
+
+Built-in skill that orchestrates 5–30 agents in isolated Git worktrees simultaneously.
+Use for: large refactors, cross-codebase analysis, parallel feature spikes.
+
+```
+/batch Refactor all API handlers to use the new error format
+```
 
 ---
 
@@ -113,17 +137,12 @@ Found X unrecognized doc(s) in docs/:
 
 ### General Principles
 
-- Follow **SOLID** principles in all object-oriented code:
-  - **S**ingle Responsibility: one class/module = one reason to change
-  - **O**pen/Closed: open for extension, closed for modification
-  - **D**ependency Inversion: depend on abstractions, not concretions
-- Apply **DRY** (Don't Repeat Yourself): extract duplication into shared abstractions only when it appears 3+ times and the abstraction is stable
-- Apply **KISS** (Keep It Simple): the simplest working solution is the right one until proven otherwise
-- Apply **YAGNI** (You Aren't Gonna Need It): don't build for hypothetical futures
+- Follow **SOLID** principles: Single Responsibility, Open/Closed, Dependency Inversion
+- Apply **DRY**: extract duplication into shared abstractions only when it appears 3+ times and the abstraction is stable
+- Apply **KISS**: the simplest working solution is the right one until proven otherwise
+- Apply **YAGNI**: don't build for hypothetical futures
 
 ### Design Patterns — When to Use
-
-Apply design patterns when they solve a real, present problem — not to demonstrate knowledge:
 
 | Pattern | Use when |
 |---------|----------|
@@ -140,66 +159,59 @@ Apply design patterns when they solve a real, present problem — not to demonst
 
 ### Rules
 
-- **Name it**: if you apply a pattern, name it explicitly in the code (class name, file name, or comment) so it's recognizable
-- **Justify it**: if a pattern adds indirection, it must earn its complexity — document why in the relevant ADR or phase doc
+- **Name it**: if you apply a pattern, name it explicitly in the code so it's recognizable
+- **Justify it**: if a pattern adds indirection, it must earn its complexity — document why in the ADR
 - **Don't force it**: a plain function or simple class is better than a pattern applied for its own sake
 - **Prefer composition over inheritance** in all cases where both could work
-- **Code review question**: before finalizing, ask *"does this code read like idiomatic [language] to a senior engineer?"*
+- Before finalizing, ask *"does this code read like idiomatic [language] to a senior engineer?"*
 
 ---
 
 ## 8. Robustness, Performance & Resource Management
 
 ### Memory Management
-
-- **No memory leaks**: every resource opened must be closed — use `finally`, `using`, `defer`, context managers, or RAII depending on the language
+- **No memory leaks**: every resource opened must be closed — use `finally`, `using`, `defer`, context managers, or RAII
 - **Avoid unbounded collections**: cap queues, lists, and maps that grow over time; set explicit `maxSize` limits
-- **Prefer streaming over buffering**: for large data (files, API responses), process in chunks rather than loading everything into memory
-- **Release references explicitly** when objects are long-lived (event listeners, timers, subscriptions) — unsubscribe and clear on teardown
-- **Use weak references** (`WeakMap`, `WeakRef`) for caches or secondary indexes that should not prevent garbage collection
-- **Profile before optimizing**: don't guess at memory pressure — measure with heap snapshots, memory profilers, or APM tools
+- **Prefer streaming over buffering**: for large data, process in chunks rather than loading everything into memory
+- **Release references explicitly** when objects are long-lived (event listeners, timers, subscriptions) — unsubscribe on teardown
+- **Use weak references** (`WeakMap`, `WeakRef`) for caches or secondary indexes that should not prevent GC
+- **Profile before optimizing**: measure with heap snapshots or APM tools — don't guess
 
 ### Caching Strategy
-
-- **Cache at the right layer**: distinguish L1 (in-process), L2 (shared/Redis), L3 (CDN/HTTP) — pick the layer that matches the data's scope and lifetime
-- **Always define TTL and eviction policy**: no cache entry lives forever; LRU is the default eviction strategy unless data has natural expiry
-- **Cache-aside by default**: read from cache → on miss, load from source → populate cache — never write-through unless consistency is critical
-- **Invalidate deliberately**: cache invalidation must be an explicit design decision, not an afterthought — document the strategy in the relevant ADR
+- **Cache at the right layer**: L1 (in-process), L2 (shared/Redis), L3 (CDN/HTTP) — pick the layer matching the data's scope
+- **Always define TTL and eviction policy**: LRU is the default; no cache entry lives forever
+- **Cache-aside by default**: read from cache → on miss, load from source → populate cache
+- **Invalidate deliberately**: cache invalidation must be an explicit design decision — document the strategy in the ADR
 - **Cache only stable, expensive data**: don't cache what's cheap to compute or changes on every request
-- **Key design matters**: cache keys must be deterministic, scoped, and versioned (include schema version or hash when relevant) to avoid stale reads after deploys
+- **Key design matters**: cache keys must be deterministic, scoped, and versioned to avoid stale reads after deploys
 - **Never cache errors** unless intentional (negative caching) — always document if you do
 
 ### Resilience & Error Handling
-
-- **Fail fast, recover gracefully**: validate inputs at boundaries, surface errors early, provide meaningful fallbacks downstream
-- **Apply Circuit Breaker** for calls to external services — stop hammering a failing dependency, return a degraded response instead
-- **Timeouts everywhere**: every network call, DB query, and external API call must have an explicit timeout — never rely on default or infinite
+- **Fail fast, recover gracefully**: validate inputs at boundaries, surface errors early, provide meaningful fallbacks
+- **Apply Circuit Breaker** for calls to external services
+- **Timeouts everywhere**: every network call, DB query, and external API call must have an explicit timeout
 - **Retry with exponential backoff + jitter** for transient failures; cap total retry attempts and always log each attempt
-- **Bulkhead isolation**: isolate resource pools (thread pools, connection pools) per subsystem so one slow dependency doesn't starve the others
-- **Graceful degradation**: design features to work partially when dependencies are unavailable (cached data, reduced functionality, safe defaults)
+- **Bulkhead isolation**: isolate resource pools per subsystem so one slow dependency doesn't starve the others
+- **Graceful degradation**: design features to work partially when dependencies are unavailable
 
 ### Performance
+- **Measure first**: instrument before optimizing — confirm where the bottleneck actually is
+- **Avoid N+1 queries**: batch or eager-load related data; use dataloaders or join queries
+- **Paginate everything**: no endpoint or query returns unbounded result sets
+- **Async for I/O, sync for CPU**: use workers/threads for CPU-intensive work
+- **Connection pooling**: always use pooled connections for databases and HTTP clients
 
-- **Measure first**: instrument before optimizing — use tracing, profiling, and benchmarks to confirm where the bottleneck actually is
-- **Avoid N+1 queries**: batch or eager-load related data at the data access layer; use dataloaders or join queries where appropriate
-- **Lazy load by default, eager load when measured**: don't load data until needed, but flip to eager when profiling proves it's faster
-- **Paginate everything**: no endpoint or query returns unbounded result sets — enforce a default and maximum page size
-- **Async for I/O, sync for CPU**: use async/non-blocking I/O for network and disk; use workers/threads for CPU-intensive work
-- **Connection pooling**: always use pooled connections for databases and HTTP clients — never open a raw connection per request
-
-### Observability (Robustness enabler)
-
-- **Structured logging**: log JSON (or equivalent) with consistent fields — `level`, `timestamp`, `traceId`, `service`, `message`
-- **Log at boundaries**: log at every entry/exit of a significant operation (API request, job start/end, cache hit/miss, external call)
-- **Metrics for what matters**: track error rates, latency percentiles (p50/p95/p99), cache hit ratio, queue depth — not just "is it up"
+### Observability
+- **Structured logging**: log JSON with consistent fields — `level`, `timestamp`, `traceId`, `service`, `message`
+- **Log at boundaries**: every entry/exit of a significant operation (API request, job start/end, external call)
+- **Metrics for what matters**: error rates, latency percentiles (p50/p95/p99), cache hit ratio, queue depth
 - **Distributed tracing**: propagate trace IDs across service calls; correlate logs and spans with a single `traceId`
-- **Alerts on symptoms, not causes**: alert on user-visible impact (error rate spike, latency degradation) rather than internal signals alone
+- **Alerts on symptoms, not causes**: alert on user-visible impact, not internal signals alone
 
 ### Rules
-
-- Any new feature touching data access, external I/O, or shared state **must include a cache/memory strategy decision** — document it, even if the decision is "no cache needed because X"
+- Any new feature touching data access, external I/O, or shared state **must include a cache/memory strategy decision** — document it, even if "no cache needed because X"
 - Performance-sensitive paths must have a benchmark or load test before shipping
-- When in doubt between memory efficiency and readability: **readability wins** unless profiling proves otherwise — premature optimization is a bug
+- When in doubt between memory efficiency and readability: **readability wins** unless profiling proves otherwise
 
 ---
 
@@ -208,11 +220,11 @@ Apply design patterns when they solve a real, present problem — not to demonst
 ### Secrets Management
 - **Never commit secrets**: no API keys, tokens, passwords in code or git history — ever
 - `.env.example` must always be up to date; `.env` must be in `.gitignore`
-- Use a secret manager (Vault, AWS Secrets Manager, Doppler) in production — never rely on `.env` files
+- Use a secret manager (Vault, AWS Secrets Manager, Doppler) in production
 - Rotate secrets immediately if accidentally exposed
 
 ### OWASP Top 10 — Always check before shipping
-- **Injection** (SQL, command, LDAP): use parameterized queries and ORM — never string-concatenate user input into queries
+- **Injection** (SQL, command, LDAP): use parameterized queries and ORM — never string-concatenate user input
 - **Broken Auth**: use short-lived JWTs, secure httpOnly cookies, always hash passwords with bcrypt/argon2
 - **Sensitive Data Exposure**: never log PII, tokens, or passwords — mask in all outputs
 - **XSS**: sanitize and escape all user input rendered in HTML; set Content-Security-Policy headers
@@ -230,6 +242,10 @@ Apply design patterns when they solve a real, present problem — not to demonst
 - Reject unknown fields; enforce max lengths and type constraints
 - Return generic error messages to clients; log the real cause server-side
 
+### Form Validation — Mandatory Front + Back
+Every form must validate on BOTH client (UX) and server (security). Never rely on only one.
+→ Full rules: see `.claude/rules/forms.md`
+
 ### Dependency Auditing
 - Run security audits as part of CI — block merge on HIGH/CRITICAL vulnerabilities
 - Review all new dependencies before adding (stars, last commit, maintainers)
@@ -246,13 +262,13 @@ Apply design patterns when they solve a real, present problem — not to demonst
 
 ### Rules
 - **Coverage threshold**: aim for ≥80% on business logic; don't chase 100% — test behavior, not implementation
-- **No mocking the DB in integration tests**: use a real test DB or transaction rollbacks — mock/prod divergence hides bugs
-- **Test naming**: `it("should <behavior> when <condition>")` — tests document intent
+- **No mocking the DB in integration tests**: use a real test DB or transaction rollbacks
+- **Test naming**: `it("should <behavior> when <condition>")`
 - **Arrange-Act-Assert**: structure every test explicitly in three blocks
-- **One assertion per test** (where practical): multiple assertions → multiple tests with focused names
 - **Test data via factories/fixtures**: never hardcode IDs or dates; use deterministic seeds
-- **Don't test framework code**: don't write tests that only verify the ORM or the router work — test your logic
 - **Regression tests**: every bug fixed must have a test that reproduces it first
+
+→ Full testing rules when editing test files: see `.claude/rules/tests.md`
 
 ---
 
@@ -296,34 +312,35 @@ Apply design patterns when they solve a real, present problem — not to demonst
 
 ## 13. Database & Migrations
 
-- **Never modify a migration after it's merged** — create a new one instead
-- **Backward-compatible migrations**: new columns must have defaults or be nullable — old code must still run against the new schema
-- **Separate deploy from migrate**: code deploy and migration run are independent steps — never couple them
-- **No data migrations in schema migrations**: schema changes and data backfills are separate migration files
-- **Index before constraint**: add indexes before adding foreign key constraints on large tables
-- **Document destructive operations**: dropping a column or table requires an ADR — irreversible actions need deliberate sign-off
-- **Seed data is code**: seed scripts must be idempotent (safe to run multiple times)
+Rules when editing migration files → see `.claude/rules/migrations.md`
+
+Summary:
+- Never modify a merged migration — create a new one
+- Backward-compatible migrations only: new columns must have defaults or be nullable
+- Separate deploy from migrate — never couple them
+- No data migrations in schema migrations
+- Dropping a column or table requires an ADR
 
 ---
 
 ## 14. API Versioning & Backward Compatibility
 
 - **Semver for all public contracts**: MAJOR = breaking, MINOR = additive, PATCH = fix
-- **Never remove or rename a field without a deprecation period** — add the new field, deprecate the old, remove after N releases
+- **Never remove or rename a field without a deprecation period** — add new field, deprecate old, remove after N releases
 - **Version in the URL** (`/v1/`, `/v2/`) for REST APIs with breaking changes
 - **Deprecation header**: return `Deprecation: true` and `Sunset: <date>` headers on deprecated endpoints
-- **Contract tests**: if you have consumers (internal or external), use contract tests (Pact or equivalent) to catch breaking changes before merge
-- **Changelog entry for every API change** — consumers must know what changed
+- **Contract tests**: use Pact or equivalent to catch breaking changes before merge
+- **Changelog entry for every API change**
 
 ---
 
 ## 15. Technical Debt
 
 - **Document debt, don't hide it**: use `// TODO(username): explanation` with a link to a tracking issue
-- **No silent workarounds**: if a fix is temporary, mark it explicitly — `// TEMP: reason, remove after X`
+- **No silent workarounds**: if a fix is temporary, mark it — `// TEMP: reason, remove after X`
 - **Debt review**: include a debt review item in every phase — identify what was cut and track it
 - **Repay debt before it compounds**: a debt item that blocks 3+ features must be addressed in the next phase
-- **The boy scout rule**: leave the code slightly better than you found it — one small cleanup per PR is acceptable
+- **The boy scout rule**: leave the code slightly better than you found it — one small cleanup per PR
 
 ---
 
@@ -339,6 +356,133 @@ Apply design patterns when they solve a real, present problem — not to demonst
   - [ ] Staging deploy validated
   - [ ] Tagged and pushed
   - [ ] Production deploy + smoke test
+
+---
+
+## 17. Hooks — Lifecycle Automation
+
+Configure in `.claude/settings.json` (project, committed) or `.claude/settings.local.json` (local, gitignored).
+
+### Key Events
+
+| Event | Trigger | Typical Use |
+|-------|---------|-------------|
+| `PreToolUse` | Before any tool runs | Block dangerous commands, validate SQL |
+| `PostToolUse` | After tool succeeds | Auto-format, run linter, log actions |
+| `SessionStart` | Session begin / after `/compact` | Re-inject critical context |
+| `Notification` | Claude is idle, waiting for input | Desktop alert |
+| `Stop` | Claude finishes responding | Verify work before accepting |
+
+### Hook Types
+- **`command`**: Shell script. Exit `0` = allow, exit `2` = block with message, other = log warning
+- **`prompt`**: Single-turn LLM decision — returns `{"ok": true/false, "reason": "..."}`
+- **`agent`**: Full subagent for complex verification (up to 50 tool turns)
+
+### Recommended Setup
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [{ "type": "command", "command": "npx prettier --write \"$CLAUDE_TOOL_INPUT_FILE_PATH\"" }]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [{ "type": "command", "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"rm -rf\")' && exit 2 || exit 0" }]
+      }
+    ]
+  }
+}
+```
+
+Add a `PreToolUse` hook on `Edit|Write` to block edits to `.env`, `*.lock`, `migrations/*` unless explicitly approved.
+
+---
+
+## 18. Skills — Slash Commands
+
+Store in `.claude/skills/` (project) or `~/.claude/skills/` (personal).
+
+### Built-in Skills Worth Using
+
+| Skill | Purpose |
+|-------|---------|
+| `/batch <instruction>` | Parallel agents across worktrees — large refactors |
+| `/simplify` | Spawns 3 review agents, aggregates findings, applies fixes |
+| `/loop [interval] <prompt>` | Repeat a prompt on a timer (e.g. `/loop 5m check deploy`) |
+
+### Creating a Project Skill
+
+```markdown
+---
+name: fix-issue
+description: Fix a GitHub issue by number
+allowed-tools: Bash, Read, Edit, Write, Grep, Glob
+---
+
+Fetch issue #$ARGUMENTS with `gh issue view $ARGUMENTS`.
+Reproduce the bug, fix it, write a regression test, open a PR.
+```
+
+- Skills with `disable-model-invocation: true` are **manual only** (e.g. production deploy checklist)
+- Use `context: fork` for read-only analysis skills to keep the main context clean
+
+---
+
+## 19. MCP Servers — External Tool Integrations
+
+Configure in `.mcp.json` (project scope, committed) or `~/.claude.json` (user scope).
+
+```bash
+claude mcp add --scope project --transport http github https://api.githubcopilot.com/mcp/
+claude mcp add --scope user --transport http sentry https://mcp.sentry.io/
+claude mcp add --transport stdio db-reader -- node scripts/db-readonly-mcp.js
+```
+
+| Server | Scope | Value |
+|--------|-------|-------|
+| GitHub | project | Read PRs, issues, diffs |
+| Sentry | user | Pull production errors into context |
+| PostgreSQL | local | Query the dev DB without leaving the session |
+| Jira/Linear | user | Link issues to code changes |
+
+- MCP servers at **project scope** go in `.mcp.json` — commit it so the team shares integrations
+- Scope sensitive servers (prod DB, secrets) to **local** only — never commit credentials
+
+---
+
+## 20. `.claudeignore` — Controlling Claude's File Access
+
+Every project **must** include a `.claudeignore` file at the root. It tells Claude which files to exclude from context (reads, searches, indexing).
+
+→ Baseline template: `docs/templates/claudeignore`
+
+### Rules
+- **Create `.claudeignore` at project bootstrap** — before writing any code
+- **Commit it** — project-level configuration that the whole team benefits from
+- **Never ignore `docs/`, `tasks/`, `CLAUDE.md`, `CHANGELOG.md`, `README.md`**
+- **Add stack-specific entries** as the project grows (e.g. `.terraform/`, `__generated__/`)
+- **Do not ignore test files** — Claude must be able to read and write tests
+- **Review and update** whenever a new tool or build step is added
+
+---
+
+## 21. `.gitignore` — Controlling What Git Tracks
+
+Every project **must** include a `.gitignore` file at the root. Create it before the first commit.
+
+→ Baseline template: `docs/templates/gitignore`
+
+### Rules
+- **Create `.gitignore` at project bootstrap** — before `git init` or the first `git add`
+- **Never commit secrets**: if accidentally committed, rotate immediately and rewrite history (`git filter-repo`)
+- **Commit `.env.example`**: always provide a documented, secret-free template
+- **Do not ignore lock files**: `package-lock.json`, `poetry.lock`, `go.sum`, etc. must be committed
+- **Do not ignore `docs/`, `tasks/`, `CHANGELOG.md`, `README.md`**
+- **Review with `git status --short`** before every first commit on a new project
 
 ---
 
@@ -366,63 +510,16 @@ develop → fix/<issue-short-description>
 develop → chore/<task-short-description>
 ```
 
-Examples:
-```
-feature/phase1-auth-setup
-feature/phase2-1-api-layer
-fix/phase2-token-refresh
-```
-
-- **Never commit directly to `develop` or `main`**
+- **Never commit directly to `develop` or `main`** — except during PoC phase (see below)
 - Merge only via Pull Request, after review and all checks passing
+
+> **Exception PoC**: During Proof of Concept (no stable prod yet), it's acceptable to merge feature branches directly on `main` or commit directly to `main` when working alone. Reintroduce `develop` once a v1 is deployed to production.
 
 ### Pull Request Requirements
 
-Each PR must include:
-
 **Title**: `[Phase X.Y] Short description of what was done`
 
-**Body checklist**:
-```markdown
-## Summary
-<!-- What was built, why, and how -->
-
-## Phase Documentation
-- [ ] `docs/phases/phase-X.Y-*.md` created and up to date
-- [ ] `docs/phases/phase-X.Y-test-plan.md` created, all test cases executed and status filled
-- [ ] `docs/phases/phase-X.Y-user-doc.md` created and covers all user-visible features
-- [ ] `docs/RECAP.md` updated — PO section and CTO section filled for this phase
-- Link: docs/phases/phase-X.Y-short-description.md
-
-## Changes
-- [ ] List of files modified and reason
-- [ ] Any schema / API contract changes
-
-## Tests
-- [ ] Unit tests written and passing
-- [ ] Integration tests written and passing
-- [ ] Edge cases covered
-- [ ] Test output / coverage attached or linked
-
-## Security
-- [ ] No secrets committed
-- [ ] Inputs validated at boundaries
-- [ ] `npm audit` / equivalent run — no HIGH/CRITICAL issues
-- [ ] OWASP Top 10 self-review done (if touching auth, DB, or user input)
-
-## Definition of Done
-- [ ] Feature works as specified
-- [ ] No regressions on existing tests
-- [ ] Code reviewed for elegance (no hacky fixes)
-- [ ] `docs/phases/phase-X.Y-*.md` finalized (status set to Done)
-- [ ] `CHANGELOG.md` updated with relevant entries
-- [ ] `README.md` updated if setup, structure, or public interface changed
-- [ ] Relevant `docs/` files updated if needed
-- [ ] `tasks/todo.md` updated
-- [ ] `docs/lessons.md` updated if a mistake was caught
-
-## Screenshots / Logs (if applicable)
-```
+**Body**: use template at `docs/templates/pr-checklist.md`
 
 ---
 
@@ -434,400 +531,65 @@ All technical decisions and reference documents live in `docs/`. Never scatter a
 |------|---------|
 | `docs/STACK.md` | Tech stack, chosen libraries, hosting, rationale |
 | `docs/ARCHITECTURE.md` | High-level system design, diagrams |
-| `docs/ADR/` | Architecture Decision Records (one file per decision) |
+| `docs/ADR/` | Architecture Decision Records — template: `docs/templates/adr.md` |
 | `docs/lessons.md` | Mistakes made + rules derived to prevent recurrence |
 | `docs/CONVENTIONS.md` | Naming conventions, code style, folder structure |
 | `docs/API.md` | API contracts, endpoints, payload shapes |
-| `docs/phases/` | One documentation file per development phase (see below) |
-| `docs/phases/phase-X.Y-test-plan.md` | Cahier de tests par phase (cas, données, résultats attendus) |
-| `docs/phases/phase-X.Y-user-doc.md` | Documentation utilisateur par phase (guides, flux, captures) |
-| `docs/RECAP.md` | Récapitulatif vivant pour le PO (livraisons) et le CTO (points techniques) |
-| `CHANGELOG.md` | Chronological log of all significant changes (root of project) |
-| `README.md` | Project overview, setup instructions, usage (root of project) |
+| `docs/phases/` | One doc per phase — template: `docs/templates/phase.md` |
+| `docs/phases/phase-X.Y-test-plan.md` | Test plan per phase — template: `docs/templates/test-plan.md` |
+| `docs/phases/phase-X.Y-user-doc.md` | User doc per phase — template: `docs/templates/user-doc.md` |
+| `docs/RECAP.md` | Living recap for PO and CTO — template: `docs/templates/recap.md` |
+| `docs/templates/` | All document templates |
+| `CHANGELOG.md` | Chronological log of all changes — template: `docs/templates/changelog.md` |
+| `README.md` | Project overview, setup, usage — template: `docs/templates/readme.md` |
+| `.claude/rules/` | Path-specific rules (forms, tests, migrations) |
+| `.claude/settings.json` | Project-level permissions and hooks (committed) |
+| `.mcp.json` | Project MCP server configuration (committed) |
 
-### README
+### README Rules
+- Must exist at the root of every project — create before any other work
+- At session start: if missing or empty, generate from context and propose to user before writing
+- Living document — update whenever setup, structure, or features change significantly
+- Keep concise and developer-facing; link to `docs/` rather than duplicating content
 
-A `README.md` must exist at the **root of every project**. If it doesn't exist, Claude must create it before any other work begins.
-
-**At session start**: if `README.md` is missing or empty, generate it from available context (project name, existing code, `docs/STACK.md`, `docs/ARCHITECTURE.md`, etc.) and propose it to the user for review before writing it.
-
-**Required structure:**
-
-````markdown
-# Project Name
-
-> One-line description of what this project does and for whom.
-
-## Overview
-Brief explanation of the project's purpose, context, and main features (3–5 sentences max).
-
-## Tech Stack
-Main technologies used — link to `docs/STACK.md` for details.
-
-## Prerequisites
-What needs to be installed before running the project (Node version, env vars, etc.).
-
-## Getting Started
-```bash
-# Clone
-git clone ...
-
-# Install dependencies
-npm install
-
-# Configure environment
-cp .env.example .env
-
-# Run locally
-npm run dev
-```
-
-## Project Structure
-```
-src/
-docs/
-tasks/
-```
-Brief explanation of the main folders.
-
-## Documentation
-- [Stack & Architecture](docs/STACK.md)
-- [Architecture Decisions](docs/ADR/)
-- [API Reference](docs/API.md)
-- [Conventions](docs/CONVENTIONS.md)
-- [Changelog](CHANGELOG.md)
-
-## Contributing
-Branch naming, PR process — see Git Workflow in `CLAUDE.md`.
-
-## License
-````
-
-**Rules:**
-- `README.md` is a living document — update it whenever the setup, structure, or features change significantly
-- Keep it concise and developer-facing: no marketing copy, no fluff
-- If information already exists in `docs/`, link to it rather than duplicating it
-- Update the README as part of any PR that changes the public interface, setup steps, or project structure
-
-### CHANGELOG
-
-A `CHANGELOG.md` must be maintained at the **root of every project**, following the [Keep a Changelog](https://keepachangelog.com) format:
-
-```markdown
-# Changelog
-
-All notable changes to this project will be documented here.
-Format: [Keep a Changelog](https://keepachangelog.com) — [Semantic Versioning](https://semver.org)
-
-## [Unreleased]
-
-## [1.2.0] - YYYY-MM-DD
-### Added
-- ...
-### Changed
-- ...
-### Fixed
-- ...
-### Removed
-- ...
-```
-
-**Rules:**
-- Update `CHANGELOG.md` as part of **every PR** — never retroactively
-- Each merged PR maps to at least one entry under the appropriate section (`Added`, `Changed`, `Fixed`, `Removed`, `Security`)
+### CHANGELOG Rules
+- Update as part of **every PR** — never retroactively
+- Each merged PR maps to at least one entry (`Added`, `Changed`, `Fixed`, `Removed`, `Security`)
 - The `[Unreleased]` section accumulates entries until a version is tagged
-- Never leave `CHANGELOG.md` empty or stale — it is a first-class project artifact
 
-### Per-Phase Documentation (`docs/phases/`)
+### Per-Phase Documentation Rules
+- Create the phase doc **before the PR is opened**, fill progressively, finalize before merge
+- `test-plan.md` and `user-doc.md` are mandatory companion files — created before implementation, completed before merge
+- If a phase is abandoned or pivoted, document the reason and set status to `Abandoned`
 
-Every development phase (and significant sub-phase) must have a dedicated documentation file created **before the PR is opened**:
-
-**Naming**: `docs/phases/phase-X.Y-short-description.md`
-
-Examples:
-```
-docs/phases/phase-1-project-bootstrap.md
-docs/phases/phase-2-1-api-layer.md
-docs/phases/phase-2-2-auth-integration.md
-```
-
-**Required structure:**
-
-```markdown
-# Phase X.Y — Short Description
-
-**Status**: In Progress | Done | Abandoned
-**Branch**: `feature/phaseX-Y-short-description`
-**PR**: #XX (link once created)
-**Date**: YYYY-MM-DD
-
-## Goal
-What this phase aims to deliver and why.
-
-## Scope
-- What is included
-- What is explicitly excluded (avoids scope creep)
-
-## Technical Decisions
-Key choices made during this phase (link to ADRs if relevant).
-
-## Implementation Notes
-Anything worth knowing for future reference: gotchas, non-obvious choices, workarounds.
-
-## Tests
-How the phase was validated. What was covered, what was left out and why.
-Link to test plan: `docs/phases/phase-X.Y-test-plan.md`
-
-## User Documentation
-Summary of what was documented for end users.
-Link to user doc: `docs/phases/phase-X.Y-user-doc.md`
-
-## Result
-What was actually delivered. Differences from the initial goal, if any.
-
-## CHANGELOG entries
-Entries added to CHANGELOG.md as part of this phase.
-```
-
-**Rules:**
-- The phase doc is created at branch creation, filled progressively, and finalized before the PR is merged
-- The PR description links to the corresponding `docs/phases/phase-X.Y-*.md` file
-- **A cahier de tests (`phase-X.Y-test-plan.md`) and a user doc (`phase-X.Y-user-doc.md`) are mandatory companion files** — created before implementation begins, completed before the PR is merged
-- If a phase is abandoned or pivoted, document the reason in the file and set status to `Abandoned`
-
-### Cahier de Tests (`docs/phases/phase-X.Y-test-plan.md`)
-
-Every phase and sub-phase must produce a test plan written **before implementation starts** and completed **before the PR is merged**.
-
-**Naming**: `docs/phases/phase-X.Y-test-plan.md`
-
-**Required structure:**
-
-```markdown
-# Phase X.Y — Cahier de Tests
-
-**Phase**: X.Y — Short Description
-**Status**: Draft | In Progress | Validated
-**Date**: YYYY-MM-DD
-
-## Scope
-What features / user stories are covered by this test plan.
-
-## Test Environment
-- Runtime version, OS, browser(s) if applicable
-- Test database / fixtures strategy
-- Required environment variables or configuration
-
-## Test Cases
-
-### TC-001 — <Short test case name>
-| Field | Value |
-|-------|-------|
-| **Category** | Unit \| Integration \| E2E \| Manual |
-| **Preconditions** | State required before the test runs |
-| **Input / Steps** | Step-by-step actions or input data |
-| **Expected Result** | Exact expected outcome |
-| **Actual Result** | (filled during execution) |
-| **Status** | Pass \| Fail \| Blocked \| Skipped |
-| **Notes** | Observations, links to failing logs, etc. |
-
-<!-- Repeat for each test case -->
-
-## Edge Cases & Negative Tests
-List of boundary conditions, invalid inputs, and error scenarios covered.
-
-## Non-Regression
-List of existing test suites that must still pass after this phase:
-- [ ] `<test file or suite name>` — reason it could be affected
-
-## Coverage Summary
-| Layer | Target | Achieved |
-|-------|--------|----------|
-| Unit | ≥80% | — |
-| Integration | key paths | — |
-| E2E | critical journeys | — |
-
-## Known Gaps
-What was NOT tested and why (time constraint, dependency, out of scope).
-```
-
-**Rules:**
-- Every feature added or modified in the phase must have at least one test case entry
+### Test Plan Rules
+- Write before implementation starts, complete before PR is merged
+- Every feature must have at least one test case entry
 - Negative / error-path test cases are mandatory for any user-facing or API-facing feature
-- Mark test cases with `Status: Fail` if they do not pass — never delete failing cases before the PR
-- The Coverage Summary must be filled before marking the phase `Done`
+- Mark failing cases with `Status: Fail` — never delete them before the PR
 
----
+### User Doc Rules
+- Written in the target user's language — no jargon, no class names
+- Screenshots or annotated CLI output required for any UI or interactive workflow
+- If no user-visible surface (pure infra change), write a minimal doc explaining impact on existing behaviour
 
-### Documentation Utilisateur (`docs/phases/phase-X.Y-user-doc.md`)
+### RECAP Rules (`docs/RECAP.md`)
+- Created at project bootstrap, updated at end of every phase — part of Definition of Done
+- PO section: jargon-free, focused on user value; must include **Démo direction** (what can be shown to management)
+- CTO section: precise and honest — surface risks, debt, and open questions explicitly
 
-Every phase that delivers user-visible functionality must produce a user documentation file **before the PR is merged**.
-
-**Naming**: `docs/phases/phase-X.Y-user-doc.md`
-
-**Required structure:**
-
-```markdown
-# Phase X.Y — Documentation Utilisateur
-
-**Phase**: X.Y — Short Description
-**Audience**: End user \| Admin \| Developer \| All
-**Status**: Draft | Review | Published
-**Date**: YYYY-MM-DD
-
-## Overview
-What this feature does and who it is for (2–4 sentences, no jargon).
-
-## Prerequisites
-What the user needs before using this feature (account, permissions, installed tools, etc.).
-
-## Getting Started
-Step-by-step guide to use the feature for the first time.
-
-1. Step one — brief explanation
-2. Step two — brief explanation
-3. ...
-
-> Include screenshots, CLI output, or UI mockups where helpful.
-
-## Features & Usage
-
-### <Feature or screen name>
-Description of what this feature/screen does.
-
-**How to use:**
-1. ...
-2. ...
-
-**Expected result:** ...
-
-<!-- Repeat per feature -->
-
-## Common Workflows
-Describe the most frequent end-to-end flows a user will follow.
-
-### Workflow: <Name>
-1. ...
-2. ...
-3. ...
-
-## Error Messages & Troubleshooting
-
-| Error / Symptom | Cause | Resolution |
-|-----------------|-------|------------|
-| "..." | ... | ... |
-
-## FAQ
-**Q: ...**
-A: ...
-
-## Known Limitations
-What the feature does not do yet (and the phase or ticket where it will be addressed).
-
-## Related Documentation
-- Link to API doc if relevant
-- Link to other phase user docs if chained
+### Path-Specific Rules (`.claude/rules/`)
+Rules that only activate when Claude opens matching files:
+```
+.claude/rules/forms.md      → src/**/*.{tsx,jsx,ts,js}   (form validation)
+.claude/rules/tests.md      → **/*.{test,spec}.{ts,js}   (testing rules)
+.claude/rules/migrations.md → migrations/**               (DB migration rules)
 ```
 
-**Rules:**
-- Written in the target user's language (match the project's language setting)
-- No internal jargon, implementation details, or class names — write for the persona who will use the feature
-- Screenshots or annotated CLI output are required for any UI or interactive workflow
-- If the feature has no user-visible surface (e.g. a pure infra change), write a minimal doc explaining impact on existing behaviour and link it in the phase file
-- Updated whenever the feature's behaviour changes in a subsequent phase
-
----
-
-### Recap Stakeholders (`docs/RECAP.md`)
-
-`docs/RECAP.md` is a **living document** updated at the end of every phase and sub-phase. It consolidates the project's progress into two audience-specific views: one for the Product Owner, one for the CTO.
-
-**Rules:**
-- Created at project bootstrap (even if initially empty) and kept up to date throughout the project
-- Updated **before closing the PR** for each phase — it is part of the Definition of Done
-- Written in the project's language (match the user-facing docs language)
-- The PO section must be jargon-free — no class names, no infrastructure details
-- The CTO section must be precise and honest — surface risks, debt, and open questions explicitly
-- **For each phase, explicitly identify what can be demonstrated to management (direction)** — a working UI flow, a feature end-to-end, a report, etc. If nothing is demo-ready (pure infra phase), state it explicitly with a one-line explanation. This field is mandatory in the PO section.
-
-**Naming**: `docs/RECAP.md` (single file, cumulative — never one file per phase)
-
-**Required structure:**
-
-```markdown
-# Project Recap
-
-> Last updated: YYYY-MM-DD — Phase X.Y
-
----
-
-## Product Owner View
-
-> What has been built, phase by phase. Written in plain language, focused on user value and delivery.
-
-### Phase 1 — <Short name>
-**Status**: Done | In Progress | Abandoned
-**Delivered:**
-- <User-facing feature or capability, one bullet per item>
-- ...
-
-**Not delivered / deferred:**
-- <What was descoped and why — one line each>
-
-**Notable changes vs. initial scope:**
-- <Any pivot, cut, or addition vs. the original goal>
-
-**Démo direction :**
-- <Ce qui peut être montré à la direction : flux UI, feature bout-en-bout, rapport, etc.>
-- <Si rien n'est démontrable (phase infra pure) : l'indiquer explicitement en une ligne>
-
-<!-- Repeat one ### block per phase and sub-phase -->
-
----
-
-## CTO View
-
-> Technical highlights, architectural decisions, risks, and debt. One entry per phase. Written for a senior engineer who needs the full picture fast.
-
-### Phase 1 — <Short name>
-**Key technical decisions:**
-- <Decision taken and rationale — link to ADR if applicable>
-- ...
-
-**Risks & open questions:**
-- <Any known technical risk, assumption, or unresolved question>
-
-**Technical debt introduced:**
-- <What was cut or deferred, with a TODO/ticket reference>
-
-**Performance / security notes:**
-- <Anything impacting latency, throughput, attack surface, or compliance>
-
-**Breaking changes:**
-- <Schema changes, API contract changes, config changes — anything that could break consumers>
-
-<!-- Repeat one ### block per phase and sub-phase -->
-```
-
----
-
-### ADR Format (`docs/ADR/NNN-title.md`)
-
-```markdown
-# ADR-NNN: Title
-
-**Date**: YYYY-MM-DD
-**Status**: Proposed | Accepted | Deprecated
-
-## Context
-Why is this decision needed?
-
-## Decision
-What was decided?
-
-## Consequences
-What are the trade-offs?
-```
+### Auto Memory
+Claude automatically takes notes across sessions in `~/.claude/projects/<project>/memory/MEMORY.md`.
+- First 200 lines loaded every session — no manual action required
+- Complement to CLAUDE.md: CLAUDE.md = team standards (committed), auto memory = session learnings (local)
 
 ---
 
@@ -844,7 +606,7 @@ A task is **done** only when ALL of the following are true:
 - [ ] `docs/phases/phase-X.Y-*.md` exists, is complete, and status is set to `Done`
 - [ ] `docs/phases/phase-X.Y-test-plan.md` exists, all test cases filled, Coverage Summary completed
 - [ ] `docs/phases/phase-X.Y-user-doc.md` exists and covers all user-visible features of the phase
-- [ ] `docs/RECAP.md` updated — PO section lists all deliverables, CTO section covers decisions, risks, and debt for this phase
+- [ ] `docs/RECAP.md` updated — PO section lists all deliverables, CTO section covers decisions, risks, and debt
 - [ ] `CHANGELOG.md` has been updated with at least one entry for this phase
 - [ ] Relevant `docs/` files are updated
 - [ ] `tasks/todo.md` reflects completion
@@ -864,4 +626,3 @@ A task is **done** only when ALL of the following are true:
 - **Security is not a phase**: it's built in from the first line of code — never retrofitted.
 - **Migrations are contracts**: once merged, a migration is immutable — the schema is a public API.
 - **CI is the authority**: if CI says it's broken, it's broken — don't ship around it.
-
